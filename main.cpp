@@ -60,6 +60,7 @@ static FunctionPointer mainGameLoop[] = {
 typedef struct {
     uint8_t screen_buffer[BUFFER_SIZE];
     uint8_t front_buffer[BUFFER_SIZE];
+    uint8_t last_committed_buffer[BUFFER_SIZE];
 
     Gui* gui;
     Canvas* canvas;
@@ -72,6 +73,7 @@ typedef struct {
     volatile bool exit_requested;
     volatile bool in_frame;
     volatile bool invert_frame;
+    volatile bool has_last_committed;
 } FlipperState;
 
 static FlipperState* g_state = NULL;
@@ -85,7 +87,7 @@ static void framebuffer_commit_callback(
     if(size < BUFFER_SIZE) return;
     (void)orientation;
 
-    if(furi_mutex_acquire(state->fb_mutex, 0) != FuriStatusOk) return;
+    if(furi_mutex_acquire(state->fb_mutex, FuriWaitForever) != FuriStatusOk) return;
 
     const uint8_t* src = state->front_buffer;
     for(size_t i = 0; i < BUFFER_SIZE; i++) {
@@ -219,10 +221,18 @@ static void timer_callback(void* ctx) {
 
     game_loop_tick();
     state->invert_frame = false;
-    furi_mutex_acquire(state->fb_mutex, FuriWaitForever);
-    memcpy(state->front_buffer, state->screen_buffer, BUFFER_SIZE);
-    furi_mutex_release(state->fb_mutex);
-    canvas_commit(state->canvas);
+    bool changed = true;
+    if(state->has_last_committed) {
+        changed = (memcmp(state->screen_buffer, state->last_committed_buffer, BUFFER_SIZE) != 0);
+    }
+    if(changed) {
+        furi_mutex_acquire(state->fb_mutex, FuriWaitForever);
+        memcpy(state->front_buffer, state->screen_buffer, BUFFER_SIZE);
+        memcpy(state->last_committed_buffer, state->screen_buffer, BUFFER_SIZE);
+        state->has_last_committed = true;
+        furi_mutex_release(state->fb_mutex);
+        canvas_commit(state->canvas);
+    }
     furi_mutex_release(state->game_mutex);
     state->in_frame = false;
 }
@@ -249,6 +259,8 @@ extern "C" int32_t mybl_app(void* p) {
 
     memset(g_state->screen_buffer, 0x00, BUFFER_SIZE);
     memset(g_state->front_buffer, 0x00, BUFFER_SIZE);
+    memset(g_state->last_committed_buffer, 0x00, BUFFER_SIZE);
+    g_state->has_last_committed = false;
 
     arduboy.begin(g_state->screen_buffer, &g_state->input_state, g_state->game_mutex, &g_state->exit_requested);
     Sprites::setArduboy(&arduboy);
