@@ -2,6 +2,7 @@
 
 #include "Arduino.h"
 #include "ArduboyTones.h"
+#include "ArduboyAudio.h"
 #include "EEPROM.h"
 #include <stdint.h>
 #include <stddef.h>
@@ -57,7 +58,7 @@ extern "C" {
 #define ARDUBOY_LIB_VER               60000
 #define ARDUBOY_UNIT_NAME_LEN         6
 #define ARDUBOY_UNIT_NAME_BUFFER_SIZE (ARDUBOY_UNIT_NAME_LEN + 1)
-#define EEPROM_STORAGE_SPACE_START    16
+#define EEPROM_STORAGE_SPACE_START    0
 #define BLACK                         1
 #define WHITE                         0
 #define INVERT                        2
